@@ -1,5 +1,7 @@
 import org.json.JSONArray
 import org.json.JSONObject
+import utils.toCamelCase
+import utils.toClassName
 import java.io.File
 
 fun generateDataClasses(
@@ -64,19 +66,7 @@ fun generateDataClasses(
     classes.add(builder.toString())
 }
 
-/* ---------- Helpers ---------- */
 
-fun String.toCamelCase(): String {
-    val parts = split("_")
-    return parts.first() + parts.drop(1).joinToString("") {
-        it.replaceFirstChar { c -> c.uppercase() }
-    }
-}
-
-fun String.toClassName(): String =
-    split("_").joinToString("") {
-        it.replaceFirstChar { c -> c.uppercase() }
-    }
 
 fun main() {
     val jsonString = """ {
