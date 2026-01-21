@@ -11,6 +11,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    // Source: https://mvnrepository.com/artifact/org.json/json
+    implementation("org.json:json:20200518")
 }
 
 tasks.test {
