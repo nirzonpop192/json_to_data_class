@@ -1,8 +1,11 @@
 import org.json.JSONArray
 import org.json.JSONObject
+import utils.FileUtils
 import utils.toCamelCase
 import utils.toClassName
 import java.io.File
+import javax.swing.JOptionPane
+
 
 fun generateDataClasses(
     json: JSONObject,
@@ -29,14 +32,14 @@ fun generateDataClasses(
             is String -> "String?"
 
             is JSONObject -> {
-                val nestedClassName = originalKey.toClassName()
+                val nestedClassName = originalKey.toClassName() + "Dto"
                 generateDataClasses(value, nestedClassName, classes)
                 nestedClassName
             }
 
             is JSONArray -> {
                 if (value.length() > 0 && value.get(0) is JSONObject) {
-                    val nestedClassName = originalKey.toClassName().removeSuffix("s")
+                    val nestedClassName = originalKey.toClassName().removeSuffix("s") +"Dto"
                     generateDataClasses(value.getJSONObject(0), nestedClassName, classes)
                     "List<$nestedClassName>"
                 } else {
@@ -65,6 +68,16 @@ fun generateDataClasses(
 
     classes.add(builder.toString())
 }
+
+fun askRootClassName(): String? {
+    return JOptionPane.showInputDialog(
+        null,
+        "Enter Root Class Name (e.g. ApiResponse)",
+        "Root Class Name",
+        JOptionPane.QUESTION_MESSAGE
+    )
+}
+
 
 
 
@@ -97,10 +110,25 @@ fun main() {
     "extra": null
 } """
 
+
+
+    var rootClassName = askRootClassName()
+            ?.trim()
+            ?.replaceFirstChar { it.uppercase() }
+
+    if (rootClassName.isNullOrEmpty()) {
+        JOptionPane.showMessageDialog(
+            null,
+            "Root class name is required!",
+            "Error",
+            JOptionPane.ERROR_MESSAGE
+        )
+        return
+    }
     val root = JSONObject(jsonString)
     val classes = mutableListOf<String>()
-
-    generateDataClasses(root, "ApiResponse", classes)
+    rootClassName += "ApiResponse"
+    generateDataClasses(root, rootClassName, classes)
 
     val output = buildString {
         append("import com.google.gson.annotations.Expose\n")
@@ -108,7 +136,27 @@ fun main() {
         append(classes.reversed().joinToString("\n\n"))
     }
 
-    File("output.kt").writeText(output)
+   // File("$rootClassName.kt").writeText(output)
+
+
+    // 📁 output/
+    val outputDir = FileUtils.getOrCreateOutputDir()
+
+    // 📁 output/dto
+    val dtoDir =  FileUtils.createSubDir(outputDir, "dto")
+
+//    // 📁 output/domain
+//    val domainDir = createSubDir(outputDir, "domain")
+//
+//    // 📁 output/mapper
+//    val mapperDir = createSubDir(outputDir, "mapper")
+
+    // DTO file
+    FileUtils.writeKtFile(
+        dtoDir,
+        rootClassName,
+        output
+    )
 
     println("✅ Kotlin data classes generated with camelCase")
 }
