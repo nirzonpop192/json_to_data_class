@@ -1,3 +1,4 @@
+import model.FieldInfo
 import org.json.JSONArray
 import org.json.JSONObject
 import utils.FileUtils
@@ -69,6 +70,48 @@ fun generateDataClasses(
     classes.add(builder.toString())
 }
 
+fun generateDto(
+    json: JSONObject,
+    className: String,
+    classes: MutableMap<String, List<FieldInfo>>
+) {
+    val fields = mutableListOf<FieldInfo>()
+
+    json.keys().forEach { key ->
+        val camel = key.toCamelCase()
+        val value = json.get(key)
+
+        val dtoType = when (value) {
+            JSONObject.NULL -> "Any?"
+            is Int -> "Int?"
+            is Boolean -> "Boolean?"
+            is String -> "String?"
+            is JSONObject -> {
+                val nested = key.toClassName() + "Dto"
+                generateDto(value, nested, classes)
+                "$nested?"
+            }
+            is JSONArray -> {
+                if (value.length() > 0 && value.get(0) is JSONObject) {
+                    val nested = key.toClassName().removeSuffix("s") + "Dto"
+                    generateDto(value.getJSONObject(0), nested, classes)
+                    "List<$nested>?"
+                } else "List<Any>?"
+            }
+            else -> "Any?"
+        }
+
+        val domainType = dtoType
+            .replace("?", "")
+            .replace("Dto", "")
+
+        fields.add(FieldInfo(key, camel, dtoType, domainType))
+    }
+
+    classes[className] = fields
+}
+
+
 fun askRootClassName(): String? {
     return JOptionPane.showInputDialog(
         null,
@@ -78,6 +121,61 @@ fun askRootClassName(): String? {
     )
 }
 
+fun buildDto(className: String, fields: List<FieldInfo>): String =
+    buildString {
+
+        // ---- imports ----
+        appendLine("import com.google.gson.annotations.Expose")
+        appendLine("import com.google.gson.annotations.SerializedName")
+        appendLine()
+
+        // ---- class ----
+        append("data class $className(\n")
+        append(
+            fields.joinToString(",\n") {
+                """         @Expose 
+            @SerializedName("${it.jsonKey}")
+            val ${it.name}: ${it.dtoType}
+                """.trimIndent()
+            }
+        )
+        append("\n)")
+    }
+
+fun buildDomain(className: String, fields: List<FieldInfo>): String =
+    buildString {
+        append("data class ${className.removeSuffix("Dto")}(\n")
+        append(
+            fields.joinToString(",\n") {
+                "    val ${it.name}: ${it.domainType}"
+            }
+        )
+        append("\n)")
+    }
+
+fun buildMapper(className: String, fields: List<FieldInfo>): String {
+    val domain = className.removeSuffix("Dto")
+
+    return buildString {
+        append("fun $className.toDomain(): $domain = $domain(\n")
+        append(
+            fields.joinToString(",\n") {
+                val n = it.name
+                when {
+                    it.dtoType.startsWith("String") -> "    $n = $n.orEmpty()"
+                    it.dtoType.startsWith("Int") -> "    $n = $n ?: 0"
+                    it.dtoType.startsWith("Boolean") -> "    $n = $n ?: false"
+                    it.dtoType.startsWith("List") ->
+                        "    $n = $n?.map { it.toDomain() }.orEmpty()"
+                    it.dtoType.endsWith("Dto?") ->
+                        "    $n = $n?.toDomain()"
+                    else -> "    $n = $n"
+                }
+            }
+        )
+        append("\n)")
+    }
+}
 
 
 
@@ -125,38 +223,55 @@ fun main() {
         )
         return
     }
-    val root = JSONObject(jsonString)
-    val classes = mutableListOf<String>()
-    rootClassName += "ApiResponse"
-    generateDataClasses(root, rootClassName, classes)
+    //val root = JSONObject(jsonString)
+   // val classes = mutableListOf<String>()
+   // rootClassName += "ApiResponse"
 
-    val output = buildString {
-        append("import com.google.gson.annotations.Expose\n")
-        append("import com.google.gson.annotations.SerializedName\n\n")
-        append(classes.reversed().joinToString("\n\n"))
-    }
+
+
 
    // File("$rootClassName.kt").writeText(output)
 
-
+    val root = JSONObject(jsonString)
+    val classes = mutableMapOf<String, List<FieldInfo>>()
+    //rootClassName += "ApiResponse"
+    generateDto(root, rootClassName + "Dto", classes)
     // 📁 output/
     val outputDir = FileUtils.getOrCreateOutputDir()
 
     // 📁 output/dto
     val dtoDir =  FileUtils.createSubDir(outputDir, "dto")
 
-//    // 📁 output/domain
-//    val domainDir = createSubDir(outputDir, "domain")
-//
-//    // 📁 output/mapper
-//    val mapperDir = createSubDir(outputDir, "mapper")
+    // 📁 output/domain
+    val domainDir = FileUtils.createSubDir(outputDir, "domain")
 
-    // DTO file
-    FileUtils.writeKtFile(
-        dtoDir,
-        rootClassName,
-        output
-    )
+    // 📁 output/mapper
+    val mapperDir = FileUtils.createSubDir(outputDir, "mapper")
+
+    classes.forEach { (dtoName, fields) ->
+        val domainName = dtoName.removeSuffix("Dto")
+
+        // DTO file
+        FileUtils.writeKtFile(
+            dtoDir,
+            dtoName,
+            buildDto(dtoName, fields)
+        )
+
+        // Domain file
+        FileUtils.writeKtFile(
+            domainDir,
+            domainName,
+            buildDomain(dtoName, fields)
+        )
+
+        // Mapper file
+        FileUtils.writeKtFile(
+            mapperDir,
+            "${domainName}Mapper",
+            buildMapper(dtoName, fields)
+        )
+    }
 
     println("✅ Kotlin data classes generated with camelCase")
 }
