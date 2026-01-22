@@ -8,6 +8,8 @@ import java.io.File
 import javax.swing.JOptionPane
 
 
+
+
 fun generateDataClasses(
     json: JSONObject,
     className: String,
@@ -73,7 +75,9 @@ fun generateDataClasses(
 fun generateDto(
     json: JSONObject,
     className: String,
-    classes: MutableMap<String, List<FieldInfo>>
+    classes: MutableMap<String, List<FieldInfo>>,
+    rootClassName: String,
+    isRoot: Boolean = false
 ) {
     val fields = mutableListOf<FieldInfo>()
 
@@ -87,14 +91,20 @@ fun generateDto(
             is Boolean -> "Boolean?"
             is String -> "String?"
             is JSONObject -> {
-                val nested = key.toClassName() + "Dto"
-                generateDto(value, nested, classes)
-                "$nested?"
+                //val nested = key.toClassName() + "Dto"
+                val nestedClassName =
+                    if (isRoot && key == "data") {
+                        rootClassName + "DataDto"
+                    } else {
+                        key.toClassName() + "Dto"
+                    }
+                generateDto(value, nestedClassName, classes,rootClassName,false)
+                "$nestedClassName?"
             }
             is JSONArray -> {
                 if (value.length() > 0 && value.get(0) is JSONObject) {
                     val nested = key.toClassName().removeSuffix("s") + "Dto"
-                    generateDto(value.getJSONObject(0), nested, classes)
+                    generateDto(value.getJSONObject(0), nested, classes,rootClassName,false)
                     "List<$nested>?"
                 } else "List<Any>?"
             }
@@ -223,11 +233,18 @@ fun main() {
         )
         return
     }
+    val rootDtoName = rootClassName + "Dto"
     //val root = JSONObject(jsonString)
    // val classes = mutableListOf<String>()
    // rootClassName += "ApiResponse"
 
 
+    val apiOnlyClasses = setOf(
+        rootDtoName,        // ← runtime value
+        "PaginationDto",
+        "MetaDto",
+        "LinksDto"
+    )
 
 
    // File("$rootClassName.kt").writeText(output)
@@ -235,7 +252,8 @@ fun main() {
     val root = JSONObject(jsonString)
     val classes = mutableMapOf<String, List<FieldInfo>>()
     //rootClassName += "ApiResponse"
-    generateDto(root, rootClassName + "Dto", classes)
+    generateDto(root, rootClassName + "ApiResponse", classes,  rootClassName = rootClassName,
+        isRoot = true)
     // 📁 output/
     val outputDir = FileUtils.getOrCreateOutputDir()
 
@@ -257,6 +275,9 @@ fun main() {
             dtoName,
             buildDto(dtoName, fields)
         )
+
+        // ❌ Skip domain & mapper for API-only classes
+        if (dtoName in apiOnlyClasses) return@forEach
 
         // Domain file
         FileUtils.writeKtFile(
