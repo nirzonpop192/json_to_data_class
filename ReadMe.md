@@ -46,14 +46,14 @@ output/
 ```
 This structure is Clean Architecture compliant and ready to be copied into an Android project.
 
-##🧠 Design Philosophy
+## 🧠 Design Philosophy
 DTO Layer
 
 Matches API exactly
 
 Nullable properties
 
-Uses @SerializedName
+Uses ```@SerializedName```
 
 Safe against backend changes
 
@@ -73,7 +73,7 @@ Applies default values
 
 Converts DTO → Domain cleanly
 
-🛠️ Tech Stack
+## 🛠️ Tech Stack
 
 Language: Kotlin (JVM)
 
@@ -85,15 +85,15 @@ UI: Swing (JOptionPane)
 
 Architecture: Clean Architecture principles
 
-📋 Requirements
+## 📋 Requirements
 
-JDK 8 or higher
+JDK 17 or higher
 
 Kotlin JVM
 
 Desktop environment (for popup dialog)
 
-▶️ How to Run
+## ▶️ How to Run
 
 Clone the repository
 
@@ -109,12 +109,14 @@ Example:
 
 ApiResponse
 
-🧪 Example Mapping Logic
+### 🧪 Example Mapping Logic
+```
 fun TopicDto.toDomain(): Topic = Topic(
-titleEn = titleEn.orEmpty(),
-commentCount = commentCount ?: 0,
-isVisible = isVisible ?: false
+    titleEn = titleEn.orEmpty(),
+    commentCount = commentCount ?: 0,
+    isVisible = isVisible ?: false
 )
+```
 
 
 This ensures:
@@ -123,7 +125,7 @@ No null leaks into domain/UI
 
 Safe defaults are applied centrally
 
-📂 Output Location
+### 📂 Output Location
 
 All generated files are written to:
 
@@ -148,7 +150,7 @@ Keeping DTOs nullable prevents:
 
 Null handling is intentionally done only in the mapper layer.
 
-🧩 Extensibility
+### 🧩 Extensibility
 
 This tool can be easily extended to support:
 
@@ -164,7 +166,7 @@ This tool can be easily extended to support:
 
 📱 Flutter (Dart) model generation
 
-⚠️ Limitations
+## ⚠️ Limitations
 
 Uses the first object of a JSON array to infer structure
 
@@ -172,7 +174,7 @@ Assumes consistent array element schema
 
 Does not validate JSON schema
 
-🤝 Contribution
+## 🤝 Contribution
 
 Contributions and improvements are welcome.
 
@@ -186,13 +188,13 @@ Enum detection
 
 Kotlinx Serialization support
 
-📄 License
+## 📄 License
 
 This project is intended for educational and internal tooling purposes.
 You may adapt and reuse it freely within your projects.
 
-🙌 Author
+## 🙌 Author
 
 Faisal Mohammad
-Android / Software Engineer
+Android / Sr.Software Engineer
 Focused on Clean Architecture & scalable systems
