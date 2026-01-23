@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "message": null,
+  "status": 200,
+  "data": {
+    "topics": [
+      {
+        "id": 1,
+        "slug": "sdfdsfsd",
+        "title_en": "Dhaka bus",
+        "title_bn": "ঢাকা বাস",
+        "banner_url": "https://smartcity.ventotech.net/assets/upload/2026/01/talk/1768979264911-920dd229.jpg",
+        "is_visible": true,
+        "is_comments_open": true,
+        "comment_count": 0,
+        "created_at": "2025-12-18T18:23:54+06:00"
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "per_page": 5,
+      "total": 1,
+      "last_page": 1
+    }
+  },
+  "extra": null
+}

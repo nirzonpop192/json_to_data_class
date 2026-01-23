@@ -1,7 +1,7 @@
 import com.google.gson.annotations.Expose
 import com.google.gson.annotations.SerializedName
 
-data class DimApiResponse(
+data class ApiResponse(
     @Expose   
     @SerializedName("data")   
     val data: DataDto,
