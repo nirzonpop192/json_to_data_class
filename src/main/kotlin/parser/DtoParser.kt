@@ -19,6 +19,9 @@ class DtoParser(private val config: GeneratorConfig) {
         val fields = mutableListOf<FieldInfo>()
 
         json.keys().forEach { key ->
+            /***
+             * convert the variable name to camel case
+             */
             val camel = key.toCamelCase()
             val value = json.get(key)
 
@@ -47,23 +50,41 @@ class DtoParser(private val config: GeneratorConfig) {
         is Int -> "Int?"
         is Boolean -> "Boolean?"
         is String -> "String?"
-
         is JSONObject -> {
-            val nestedName =
+            /***
+             * if json key is in root class and there key is data than class name
+             * should be root class name then data DTO(Data transfer object)
+             * otherwise data class
+             */
+            val nestedClassName =
                 if (isRoot && key == "data")
                     "${config.rootClassName}DataDto"
                 else
                     key.toClassName() + "Dto"
 
-            parse(value, nestedName, false, result)
-            "$nestedName?"
+            /***
+             * call recursive function to break down the {@nestedClassName}
+             */
+
+            parse(value, nestedClassName, false, result)
+
+            "$nestedClassName?"
         }
 
         is JSONArray -> {
+            /***
+             * in json array is not empty and frist valu is json object
+             */
             if (value.length() > 0 && value.get(0) is JSONObject) {
-                val nested = key.toClassName().removeSuffix("s") + "Dto"
-                parse(value.getJSONObject(0), nested, false, result)
-                "List<$nested>?"
+
+                val nestedClassName = key.toClassName().removeSuffix("s") + "Dto"
+
+                /***
+                 * call recursive function to break down the {@nestedClassName}
+                 */
+
+                parse(value.getJSONObject(0), nestedClassName, false, result)
+                "List<$nestedClassName>?"
             } else "List<Any?>?"
         }
 
