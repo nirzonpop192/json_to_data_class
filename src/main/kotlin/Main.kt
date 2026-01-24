@@ -1,6 +1,11 @@
+import config.GeneratorConfig
+import generator.DomainGenerator
+import generator.DtoGenerator
+import generator.MapperGenerator
 import model.FieldInfo
 import org.json.JSONArray
 import org.json.JSONObject
+import parser.DtoParser
 import utils.FileUtils
 import utils.toCamelCase
 import utils.toClassName
@@ -72,64 +77,30 @@ fun generateDataClasses(
     classes.add(builder.toString())
 }
 
-fun generateDto(
-    json: JSONObject,
-    className: String,
-    classes: MutableMap<String, List<FieldInfo>>,
-    rootClassName: String,
-    isRoot: Boolean = false
-) {
-    val fields = mutableListOf<FieldInfo>()
-
-    json.keys().forEach { key ->
-        val camel = key.toCamelCase()
-        val value = json.get(key)
-
-        val dtoType = when (value) {
-            JSONObject.NULL -> "Any?"
-            is Int -> "Int?"
-            is Boolean -> "Boolean?"
-            is String -> "String?"
-            is JSONObject -> {
-                //val nested = key.toClassName() + "Dto"
-                val nestedClassName =
-                    if (isRoot && key == "data") {
-                        rootClassName + "DataDto"
-                    } else {
-                        key.toClassName() + "Dto"
-                    }
-                generateDto(value, nestedClassName, classes,rootClassName,false)
-                "$nestedClassName?"
-            }
-            is JSONArray -> {
-                if (value.length() > 0 && value.get(0) is JSONObject) {
-                    val nested = key.toClassName().removeSuffix("s") + "Dto"
-                    generateDto(value.getJSONObject(0), nested, classes,rootClassName,false)
-                    "List<$nested>?"
-                } else "List<Any>?"
-            }
-            else -> "Any?"
-        }
-
-        val domainType = dtoType
-            .replace("?", "")
-            .replace("Dto", "")
-
-        fields.add(FieldInfo(key, camel, dtoType, domainType))
-    }
-
-    classes[className] = fields
-}
 
 
-fun askRootClassName(): String? {
-    return JOptionPane.showInputDialog(
+
+fun askRootClassName(): String {
+    val rootClassName= JOptionPane.showInputDialog(
         null,
         "Enter Root Class Name (e.g. ApiResponse)",
         "Root Class Name",
         JOptionPane.QUESTION_MESSAGE
     )
+
+    if (rootClassName.isNullOrEmpty()){
+        JOptionPane.showMessageDialog(
+            null,
+            "❌ root file  name can not be empty",
+            "Error",
+            JOptionPane.ERROR_MESSAGE
+        )
+        askRootClassName()
+    }
+
+    return rootClassName
 }
+
 
 fun buildDto(className: String, fields: List<FieldInfo>): String =
     buildString {
@@ -163,136 +134,85 @@ fun buildDomain(className: String, fields: List<FieldInfo>): String =
         append("\n)")
     }
 
-fun buildMapper(className: String, fields: List<FieldInfo>): String {
-    val domain = className.removeSuffix("Dto")
-
-    return buildString {
-        append("fun $className.toDomain(): $domain = $domain(\n")
-        append(
-            fields.joinToString(",\n") {
-                val n = it.name
-                when {
-                    it.dtoType.startsWith("String") -> "    $n = $n.orEmpty()"
-                    it.dtoType.startsWith("Int") -> "    $n = $n ?: 0"
-                    it.dtoType.startsWith("Boolean") -> "    $n = $n ?: false"
-                    it.dtoType.startsWith("List") ->
-                        "    $n = $n?.map { it.toDomain() }.orEmpty()"
-                    it.dtoType.endsWith("Dto?") ->
-                        "    $n = $n?.toDomain()"
-                    else -> "    $n = $n"
-                }
-            }
-        )
-        append("\n)")
-    }
-}
 
 
 
-fun main() {
-    val jsonString = """ {
-    "success": true,
-    "message": null,
-    "status": 200,
-    "data": {
-        "topics": [
-            {
-                "id": 1,
-                "slug": "sdfdsfsd",
-                "title_en": "Dhaka bus",
-                "title_bn": "ঢাকা বাস",
-                "banner_url": "https://smartcity.ventotech.net/assets/upload/2026/01/talk/1768979264911-920dd229.jpg",
-                "is_visible": true,
-                "is_comments_open": true,
-                "comment_count": 0,
-                "created_at": "2025-12-18T18:23:54+06:00"
-            }
-        ],
-        "pagination": {
-            "current_page": 1,
-            "per_page": 5,
-            "total": 1,
-            "last_page": 1
-        }
-    },
-    "extra": null
-} """
+fun checkInputFile(file: File){
+    if (!file.exists()) {
 
-
-
-    var rootClassName = askRootClassName()
-            ?.trim()
-            ?.replaceFirstChar { it.uppercase() }
-
-    if (rootClassName.isNullOrEmpty()) {
         JOptionPane.showMessageDialog(
             null,
-            "Root class name is required!",
+            "❌ input.json file not found in project root",
             "Error",
             JOptionPane.ERROR_MESSAGE
         )
-        return
+        error("❌ input.json file not found in project root")
     }
-    val rootDtoName = rootClassName + "Dto"
-    //val root = JSONObject(jsonString)
-   // val classes = mutableListOf<String>()
-   // rootClassName += "ApiResponse"
+}
+
+fun main() {
 
 
-    val apiOnlyClasses = setOf(
-        rootDtoName,        // ← runtime value
-        "PaginationDto",
-        "MetaDto",
-        "LinksDto"
+    val inputFile = File("input.json")
+
+    checkInputFile(inputFile)
+
+    val jsonText = inputFile.readText()
+    val rootJson = JSONObject(jsonText)
+
+
+    val rootClassName = askRootClassName()
+            .trim()
+            .replaceFirstChar { it.uppercase() }
+
+
+
+    val config = GeneratorConfig(
+        rootClassName = rootClassName,
+        apiOnlyDtos = setOf(
+            "${rootClassName}ApiResponse",
+            "PaginationDto",
+            "MetaDto",
+            "LinksDto"
+        )
     )
 
+    val parser = DtoParser(config)
+    val dtoGen = DtoGenerator()
+    val domainGen = DomainGenerator()
+    val mapperGen = MapperGenerator()
 
-   // File("$rootClassName.kt").writeText(output)
 
-    val root = JSONObject(jsonString)
-    val classes = mutableMapOf<String, List<FieldInfo>>()
-    //rootClassName += "ApiResponse"
-    generateDto(root, rootClassName + "ApiResponse", classes,  rootClassName = rootClassName,
-        isRoot = true)
-    // 📁 output/
+    val classes = parser.parse(
+        rootJson,
+        rootClassName + "ApiResponse",
+        isRoot = true
+    )
+
     val outputDir = FileUtils.getOrCreateOutputDir()
-
-    // 📁 output/dto
-    val dtoDir =  FileUtils.createSubDir(outputDir, "dto")
-
-    // 📁 output/domain
+    val dtoDir = FileUtils.createSubDir(outputDir, "dto")
     val domainDir = FileUtils.createSubDir(outputDir, "domain")
-
-    // 📁 output/mapper
     val mapperDir = FileUtils.createSubDir(outputDir, "mapper")
 
+
+
+
     classes.forEach { (dtoName, fields) ->
-        val domainName = dtoName.removeSuffix("Dto")
 
-        // DTO file
-        FileUtils.writeKtFile(
-            dtoDir,
-            dtoName,
-            buildDto(dtoName, fields)
-        )
+        FileUtils.writeKtFile(dtoDir, dtoName, dtoGen.generate(dtoName, fields))
 
-        // ❌ Skip domain & mapper for API-only classes
-        if (dtoName in apiOnlyClasses) return@forEach
+        if (dtoName in config.apiOnlyDtos) return@forEach
 
-        // Domain file
-        FileUtils.writeKtFile(
-            domainDir,
-            domainName,
-            buildDomain(dtoName, fields)
-        )
+        FileUtils.writeKtFile(domainDir, dtoName.removeSuffix("Dto"),
+            domainGen.generate(dtoName, fields))
 
-        // Mapper file
-        FileUtils.writeKtFile(
-            mapperDir,
-            "${domainName}Mapper",
-            buildMapper(dtoName, fields)
-        )
+        FileUtils.writeKtFile(mapperDir,
+            "${dtoName.removeSuffix("Dto")}Mapper",
+            mapperGen.generate(dtoName, fields))
     }
 
     println("✅ Kotlin data classes generated with camelCase")
 }
+
+
+
